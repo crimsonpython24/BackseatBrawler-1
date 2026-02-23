@@ -41,10 +41,12 @@ public class PlayerController : MonoBehaviour
 
     private PlayerActionController _actionController;
 
-    private bool _punchPressedThisFrame = false;
+    private bool _punchPressedThisFrame;
     private bool _stunnedForRound;
     private float _exhaustion;
     private int _hitsTaken;
+
+    private int _playerIndex;
 
     private void Awake()
     {
@@ -60,7 +62,7 @@ public class PlayerController : MonoBehaviour
 
         if (rc.CurrentState == RoundController.RoundState.InputCollection)
         {
-            _punchPressedThisFrame = _punchAction.WasPressedThisFrame();
+            _punchPressedThisFrame = IsUsingKeyboardFallback() ? GetKeyboardPunchPressed() : _punchAction.WasPressedThisFrame();
             ReadInput();
         }
 
@@ -78,11 +80,14 @@ public class PlayerController : MonoBehaviour
         if (GameManager.Instance.RoundController.CurrentState != RoundController.RoundState.InputCollection)
             return;
 
+        Vector2 movement = IsUsingKeyboardFallback() ? GetKeyboardMovement() : _moveAction.ReadValue<Vector2>();
+        bool blockHeld = IsUsingKeyboardFallback() ? GetKeyboardBlockHeld() : _blockAction.IsPressed();
+
         FrameData frameData = new()
         {
-            Movement = _moveAction.ReadValue<Vector2>(),
+            Movement = movement,
             PunchPressed = _punchPressedThisFrame,
-            BlockHeld = _blockAction.IsPressed()
+            BlockHeld = blockHeld
         };
 
         _inputFrameQueue.Enqueue(frameData);
@@ -101,6 +106,58 @@ public class PlayerController : MonoBehaviour
         {
             _actionController.ExecuteActions(frame);
         }
+    }
+
+    private bool IsUsingKeyboardFallback()
+    {
+        return _playerInput != null && _playerInput.currentControlScheme == "Keyboard&Mouse";
+    }
+
+    private Vector2 GetKeyboardMovement()
+    {
+        if (Keyboard.current == null)
+            return Vector2.zero;
+
+        float horizontal = 0f;
+
+        if (_playerIndex == 0)
+        {
+            if (Keyboard.current.aKey.isPressed) horizontal -= 1f;
+            if (Keyboard.current.dKey.isPressed) horizontal += 1f;
+        }
+        else
+        {
+            if (Keyboard.current.leftArrowKey.isPressed) horizontal -= 1f;
+            if (Keyboard.current.rightArrowKey.isPressed) horizontal += 1f;
+        }
+
+        return new Vector2(Mathf.Clamp(horizontal, -1f, 1f), 0f);
+    }
+
+    private bool GetKeyboardPunchPressed()
+    {
+        if (Keyboard.current == null)
+            return false;
+
+        if (_playerIndex == 0)
+        {
+            return Keyboard.current.wKey.wasPressedThisFrame || Keyboard.current.spaceKey.wasPressedThisFrame;
+        }
+
+        return Keyboard.current.upArrowKey.wasPressedThisFrame || Keyboard.current.enterKey.wasPressedThisFrame;
+    }
+
+    private bool GetKeyboardBlockHeld()
+    {
+        if (Keyboard.current == null)
+            return false;
+
+        if (_playerIndex == 0)
+        {
+            return Keyboard.current.sKey.isPressed || Keyboard.current.leftShiftKey.isPressed;
+        }
+
+        return Keyboard.current.downArrowKey.isPressed || Keyboard.current.rightShiftKey.isPressed;
     }
 
     #endregion
@@ -214,6 +271,7 @@ public class PlayerController : MonoBehaviour
     private void SetupInput()
     {
         _playerInput = GetComponent<PlayerInput>();
+        _playerIndex = _playerInput != null ? _playerInput.playerIndex : 0;
 
         var map = _playerInput.actions.FindActionMap("Player", true);
 

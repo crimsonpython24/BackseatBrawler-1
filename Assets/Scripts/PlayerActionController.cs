@@ -10,6 +10,9 @@ public class PlayerActionController : MonoBehaviour
     [Header("Combat")]
     [SerializeField] private float punchRange = 1.2f;
     [SerializeField] private float attackFlashDuration = 0.2f;
+    [SerializeField] private float visualSmoothing = 12f;
+
+    private Vector3 _baseScale;
 
     private Rigidbody2D _rb;
     private SpriteRenderer _sr;
@@ -24,12 +27,19 @@ public class PlayerActionController : MonoBehaviour
         _sr = GetComponent<SpriteRenderer>();
         _camera = Camera.main;
         _owner = GetComponent<PlayerController>();
-
+        _baseScale = transform.localScale;
     }
 
     private void Start()
     {
         AssignFighterSprite();
+    }
+
+
+    private void Update()
+    {
+        UpdateVisualFeedback();
+        FaceOpponent();
     }
 
     public void ExecuteActions(FrameData frameData)
@@ -175,6 +185,52 @@ public class PlayerActionController : MonoBehaviour
                 texture.SetPixel(x, y, color);
             }
         }
+    }
+
+
+    private void UpdateVisualFeedback()
+    {
+        if (_owner == null || _sr == null)
+            return;
+
+        Vector3 targetScale = _baseScale;
+
+        if (_owner.CurrentState == PlayerController.PlayerState.Moving)
+        {
+            targetScale = new Vector3(_baseScale.x * 1.05f, _baseScale.y * 0.95f, _baseScale.z);
+        }
+        else if (_owner.CurrentState == PlayerController.PlayerState.Blocking)
+        {
+            targetScale = new Vector3(_baseScale.x * 0.9f, _baseScale.y * 1.05f, _baseScale.z);
+        }
+        else if (_owner.CurrentState == PlayerController.PlayerState.Punching)
+        {
+            targetScale = new Vector3(_baseScale.x * 1.1f, _baseScale.y * 0.9f, _baseScale.z);
+        }
+        else if (_owner.CurrentState == PlayerController.PlayerState.Dazed)
+        {
+            targetScale = new Vector3(_baseScale.x, _baseScale.y * 0.8f, _baseScale.z);
+            _sr.color = new Color(1f, 0.85f, 0.35f);
+        }
+
+        transform.localScale = Vector3.Lerp(transform.localScale, targetScale, Time.deltaTime * visualSmoothing);
+
+        if (_owner.CurrentState != PlayerController.PlayerState.Blocking && _owner.CurrentState != PlayerController.PlayerState.Punching && _owner.CurrentState != PlayerController.PlayerState.Dazed)
+        {
+            _sr.color = Color.Lerp(_sr.color, Color.white, Time.deltaTime * visualSmoothing);
+        }
+    }
+
+    private void FaceOpponent()
+    {
+        PlayerController target = _owner != null ? _owner.GetOpponent() : null;
+        if (target == null)
+            return;
+
+        Vector3 scale = transform.localScale;
+        float direction = target.transform.position.x >= transform.position.x ? 1f : -1f;
+        scale.x = Mathf.Abs(scale.x) * direction;
+        transform.localScale = scale;
     }
 
     private void AssignFighterSprite()
