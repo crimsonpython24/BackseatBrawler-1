@@ -24,14 +24,17 @@ public class PlayerController : MonoBehaviour
 
     [Header("References")]
     [SerializeField] private Transform spawnPoint;
-    
-    
+
+    [Header("Combat Stats")]
+    [SerializeField] private float maxExhaustion = 5f;
+    [SerializeField] private int maxHitsTaken = 10;
+
     private PlayerInput _playerInput;
     private InputAction _moveAction;
     private InputAction _punchAction;
     private InputAction _blockAction;
 
-    private Queue<FrameData> _inputFrameQueue = new();
+    private readonly Queue<FrameData> _inputFrameQueue = new();
 
     private PlayerState _currentState = PlayerState.Idle;
     private float _timeInState;
@@ -39,46 +42,34 @@ public class PlayerController : MonoBehaviour
     private PlayerActionController _actionController;
 
     private bool _punchPressedThisFrame = false;
+    private bool _stunnedForRound;
+    private float _exhaustion;
+    private int _hitsTaken;
 
     private void Awake()
     {
         _actionController = GetComponent<PlayerActionController>();
         SetupInput();
-        
-        
     }
-
 
     private void Update()
     {
         _timeInState += Time.deltaTime;
-        
+
         RoundController rc = GameManager.Instance.RoundController;
 
         if (rc.CurrentState == RoundController.RoundState.InputCollection)
-        { 
+        {
             _punchPressedThisFrame = _punchAction.WasPressedThisFrame();
             ReadInput();
         }
+
         if (rc.CurrentState == RoundController.RoundState.Action)
         {
             ProcessInputQueue();
             UpdateStateLogic();
         }
     }
-    private void FixedUpdate()
-    {
-        /*
-        RoundController rc = GameManager.Instance.RoundController;
-        if (rc.CurrentState == RoundController.RoundState.Action)
-        {
-            ProcessInputQueue();
-            UpdateStateLogic();
-        }\
-        */
-    }
-    
-    
 
     #region Input
 
@@ -99,11 +90,15 @@ public class PlayerController : MonoBehaviour
 
     private void ProcessInputQueue()
     {
-        if (_inputFrameQueue.Count > 0)
-        {
-            FrameData frame = _inputFrameQueue.Dequeue();
+        if (_inputFrameQueue.Count <= 0)
+            return;
 
-            DetermineState(frame);
+        FrameData frame = _inputFrameQueue.Dequeue();
+
+        DetermineState(frame);
+
+        if (CanExecuteActions())
+        {
             _actionController.ExecuteActions(frame);
         }
     }
@@ -116,7 +111,13 @@ public class PlayerController : MonoBehaviour
     {
         if (_currentState == PlayerState.Dead)
             return;
-        
+
+        if (_stunnedForRound)
+        {
+            SwitchState(PlayerState.Dazed);
+            return;
+        }
+
         if (frame.PunchPressed)
             SwitchState(PlayerState.Punching);
         else if (frame.BlockHeld)
@@ -129,7 +130,6 @@ public class PlayerController : MonoBehaviour
 
     private void UpdateStateLogic()
     {
-        // Example: auto-return to idle after punch
         if (_currentState == PlayerState.Punching && _timeInState > 0.25f)
         {
             SwitchState(PlayerState.Idle);
@@ -143,14 +143,12 @@ public class PlayerController : MonoBehaviour
 
         _currentState = newState;
         _timeInState = 0f;
-
-        //Debug.Log($"Switched to {_currentState}");
     }
 
     public bool IsStillExecuting()
     {
         return GameManager.Instance.RoundController.CurrentState == RoundController.RoundState.Action
-            && _inputFrameQueue.Count > 0;
+               && _inputFrameQueue.Count > 0;
     }
 
     #endregion
@@ -158,6 +156,57 @@ public class PlayerController : MonoBehaviour
     public void Reset()
     {
         transform.position = spawnPoint.position;
+        _inputFrameQueue.Clear();
+        _exhaustion = 0f;
+        _stunnedForRound = false;
+
+        if (_currentState != PlayerState.Dead)
+        {
+            SwitchState(PlayerState.Idle);
+        }
+    }
+
+    public void AddExhaustion(float amount)
+    {
+        if (_currentState == PlayerState.Dead)
+            return;
+
+        _exhaustion = Mathf.Clamp(_exhaustion + amount, 0f, maxExhaustion);
+        if (_exhaustion >= maxExhaustion)
+        {
+            _stunnedForRound = true;
+            SwitchState(PlayerState.Dazed);
+        }
+    }
+
+    public void RegisterHitTaken()
+    {
+        if (_currentState == PlayerState.Dead)
+            return;
+
+        _hitsTaken++;
+        if (_hitsTaken >= maxHitsTaken)
+        {
+            SwitchState(PlayerState.Dead);
+        }
+    }
+
+    public bool CanExecuteActions()
+    {
+        return _currentState != PlayerState.Dead && !_stunnedForRound;
+    }
+
+    public PlayerController GetOpponent()
+    {
+        foreach (PlayerController player in GameManager.Instance.Players)
+        {
+            if (player != this)
+            {
+                return player;
+            }
+        }
+
+        return null;
     }
 
     #region Setup
@@ -178,7 +227,10 @@ public class PlayerController : MonoBehaviour
     }
 
     #endregion
-    
-    
+
     public PlayerState CurrentState => _currentState;
+    public float Exhaustion => _exhaustion;
+    public float MaxExhaustion => maxExhaustion;
+    public int HitsTaken => _hitsTaken;
+    public int MaxHitsTaken => maxHitsTaken;
 }
