@@ -13,6 +13,7 @@ public class PlayerActionController : MonoBehaviour
     [SerializeField] private float visualSmoothing = 12f;
 
     private Vector3 _baseScale;
+    private float _facingDirection = 1f;
 
     private Rigidbody2D _rb;
     private SpriteRenderer _sr;
@@ -28,6 +29,11 @@ public class PlayerActionController : MonoBehaviour
         _camera = Camera.main;
         _owner = GetComponent<PlayerController>();
         _baseScale = transform.localScale;
+        _facingDirection = Mathf.Sign(_baseScale.x);
+        if (Mathf.Approximately(_facingDirection, 0f))
+        {
+            _facingDirection = 1f;
+        }
     }
 
     private void Start()
@@ -213,6 +219,9 @@ public class PlayerActionController : MonoBehaviour
             _sr.color = new Color(1f, 0.85f, 0.35f);
         }
 
+        float targetWidth = Mathf.Abs(targetScale.x) * _facingDirection;
+        targetScale.x = targetWidth;
+
         transform.localScale = Vector3.Lerp(transform.localScale, targetScale, Time.deltaTime * visualSmoothing);
 
         if (_owner.CurrentState != PlayerController.PlayerState.Blocking && _owner.CurrentState != PlayerController.PlayerState.Punching && _owner.CurrentState != PlayerController.PlayerState.Dazed)
@@ -227,10 +236,7 @@ public class PlayerActionController : MonoBehaviour
         if (target == null)
             return;
 
-        Vector3 scale = transform.localScale;
-        float direction = target.transform.position.x >= transform.position.x ? 1f : -1f;
-        scale.x = Mathf.Abs(scale.x) * direction;
-        transform.localScale = scale;
+        _facingDirection = target.transform.position.x >= transform.position.x ? 1f : -1f;
     }
 
     private void AssignFighterSprite()
