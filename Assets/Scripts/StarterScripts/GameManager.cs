@@ -9,6 +9,8 @@ using Object = System.Object;
 
 public class GameManager : Singleton<GameManager>
 {
+    public static bool KeyboardFallbackEnabled { get; private set; }
+
     private List<PlayerController> players;
 
     public List<PlayerController> Players
@@ -72,6 +74,8 @@ public class GameManager : Singleton<GameManager>
             return;
         }
 
+        KeyboardFallbackEnabled = false;
+
         int pairedCount = 0;
 
         // Prefer gamepads when connected.
@@ -85,7 +89,12 @@ public class GameManager : Singleton<GameManager>
         // Failsafe: when no gamepads (or not enough), wire remaining players to keyboard.
         if (pairedCount < playerInputs.Length)
         {
-            pairedCount += PairKeyboardFallback(playerInputs, pairedCount);
+            int keyboardPairs = PairKeyboardFallback(playerInputs, pairedCount);
+            if (keyboardPairs > 0)
+            {
+                KeyboardFallbackEnabled = true;
+                pairedCount += keyboardPairs;
+            }
         }
 
         if (pairedCount == 0)

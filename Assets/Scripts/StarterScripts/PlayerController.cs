@@ -110,7 +110,21 @@ public class PlayerController : MonoBehaviour
 
     private bool IsUsingKeyboardFallback()
     {
+        if (GameManager.KeyboardFallbackEnabled)
+            return true;
+
         return _playerInput != null && _playerInput.currentControlScheme == "Keyboard&Mouse";
+    }
+
+    private int GetKeyboardControlSlot()
+    {
+        PlayerController opponent = GetOpponent();
+        if (opponent != null)
+        {
+            return transform.position.x <= opponent.transform.position.x ? 0 : 1;
+        }
+
+        return _playerIndex;
     }
 
     private Vector2 GetKeyboardMovement()
@@ -120,7 +134,7 @@ public class PlayerController : MonoBehaviour
 
         float horizontal = 0f;
 
-        if (_playerIndex == 0)
+        if (GetKeyboardControlSlot() == 0)
         {
             if (Keyboard.current.aKey.isPressed) horizontal -= 1f;
             if (Keyboard.current.dKey.isPressed) horizontal += 1f;
@@ -139,7 +153,7 @@ public class PlayerController : MonoBehaviour
         if (Keyboard.current == null)
             return false;
 
-        if (_playerIndex == 0)
+        if (GetKeyboardControlSlot() == 0)
         {
             return Keyboard.current.wKey.wasPressedThisFrame || Keyboard.current.spaceKey.wasPressedThisFrame;
         }
@@ -152,7 +166,7 @@ public class PlayerController : MonoBehaviour
         if (Keyboard.current == null)
             return false;
 
-        if (_playerIndex == 0)
+        if (GetKeyboardControlSlot() == 0)
         {
             return Keyboard.current.sKey.isPressed || Keyboard.current.leftShiftKey.isPressed;
         }
